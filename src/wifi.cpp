@@ -41,8 +41,14 @@ void wifi_connect() {
     WiFi.setSleepMode(WIFI_NONE_SLEEP);
     WiFi.setAutoReconnect(true); // don't require explicit attempts to reconnect in the main loop
     RINFO("Starting WiFi connecting in background");
-    WiFi.begin();                // use credentials stored in flash
-
+    // Scan WiFi networks that match stored SSID   
+    WiFi.begin(WiFi.SSID(), WiFi.psk(), WiFi.channel(), WiFi.BSSID(), true);   // use credentials stored in flash
+    
+    // DEBUG, REMOVE
+    Serial.println("SSID: " + WiFi.SSID());
+    Serial.println("RSSI: -" + String(WiFi.RSSI()));
+    Serial.println("Channel: " + String(WiFi.channel()));
+    Serial.println("BSSID: " + WiFi.BSSIDstr());
 }
 
 void improv_loop() {
@@ -60,7 +66,29 @@ void improv_loop() {
 bool connect_wifi(std::string ssid, std::string password) {
     uint8_t count = 0;
 
-    WiFi.begin(ssid.c_str(), password.c_str());
+    WiFi.disconnect();
+
+    // Scan for network with same SSID
+    int networkNum = WiFi.scanNetworks();
+
+    int sortedIndicies[networkNum];
+    for (int i = 0; i < networkNum; i++) {
+        if (WiFi.SSID(i) == ssid.c_str()) {
+            sortedIndicies[i] = i;
+        }
+        else (sortedIndicies[i] = -1);
+    }
+
+    // sort networks by RSSI, strongest to weakest
+    for (int i = 0; i < networkNum; i++) {
+        for (int j = i + 1; j < networkNum; j++) {
+            if (WiFi.RSSI(sortedIndicies[j]) > WiFi.RSSI(sortedIndicies[i])) {
+                std::swap(sortedIndicies[i], sortedIndicies[j]);
+            }
+        }
+    }
+
+    WiFi.begin(ssid.c_str(), password.c_str(), WiFi.channel(sortedIndicies[0]), WiFi.BSSID(sortedIndicies[0]), true);
 
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
@@ -72,6 +100,8 @@ bool connect_wifi(std::string ssid, std::string password) {
         }
         count++;
     }
+
+    WiFi.scanDelete();
 
     return true;
 }
